@@ -142,6 +142,48 @@ class SimulationManager:
         os.makedirs(sim_dir, exist_ok=True)
         return sim_dir
     
+    @staticmethod
+    def _load_twitter_profiles_csv(profile_path: str) -> List[Dict[str, Any]]:
+        """Load Twitter profiles from the OASIS CSV format and normalize them for the app."""
+        profiles: List[Dict[str, Any]] = []
+
+        with open(profile_path, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                user_id = row.get("user_id", "")
+                if isinstance(user_id, str) and user_id.isdigit():
+                    user_id = int(user_id)
+
+                profile = {
+                    "user_id": user_id,
+                    "username": row.get("username", ""),
+                    "name": row.get("name", ""),
+                    "bio": row.get("description", ""),
+                    "persona": row.get("user_char", ""),
+                    "description": row.get("description", ""),
+                    "user_char": row.get("user_char", ""),
+                }
+
+                for field in (
+                    "age",
+                    "gender",
+                    "mbti",
+                    "country",
+                    "profession",
+                    "interested_topics",
+                    "friend_count",
+                    "follower_count",
+                    "statuses_count",
+                    "created_at",
+                ):
+                    value = row.get(field)
+                    if value not in (None, ""):
+                        profile[field] = value
+
+                profiles.append(profile)
+
+        return profiles
+
     def _save_simulation_state(self, state: SimulationState):
         """Save simulation state to file with atomic write"""
         sim_dir = self._get_simulation_dir(state.simulation_id)
@@ -499,10 +541,7 @@ class SimulationManager:
             profile_path = os.path.join(sim_dir, "twitter_profiles.csv")
             if not os.path.exists(profile_path):
                 return []
-
-            with open(profile_path, 'r', encoding='utf-8') as f:
-                reader = csv.DictReader(f)
-                return list(reader)
+            return self._load_twitter_profiles_csv(profile_path)
 
         profile_path = os.path.join(sim_dir, f"{platform}_profiles.json")
         if not os.path.exists(profile_path):
