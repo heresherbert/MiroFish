@@ -122,12 +122,24 @@ class GraphDatabase:
     def _graph_dir(self, graph_id: str) -> str:
         return os.path.join(self.base_path, graph_id)
 
+    # Class-level cache so all threads share the same KuzuDB connection per graph
+    _storage_cache: Dict[str, GraphStorage] = {}
+    _storage_cache_lock = __import__("threading").Lock()
+
     def _make_storage(self, graph_id: str, create: bool = False) -> GraphStorage:
+        # Check the class-level cache first (serves both Flask and non-Flask threads)
+        with GraphDatabase._storage_cache_lock:
+            cached = GraphDatabase._storage_cache.get(graph_id)
+            if cached is not None:
+                return cached
+
         app_storage = get_app_graph_storage(graph_id)
         if app_storage is not None:
             storage_path = getattr(app_storage, "db_path", None) or getattr(app_storage, "data_dir", None)
             if create and storage_path:
                 os.makedirs(storage_path, exist_ok=True)
+            with GraphDatabase._storage_cache_lock:
+                GraphDatabase._storage_cache[graph_id] = app_storage
             return app_storage
 
         graph_dir = self._graph_dir(graph_id)
@@ -136,8 +148,12 @@ class GraphDatabase:
         if not os.path.isdir(graph_dir):
             raise FileNotFoundError(f"Graph database not found: {graph_id}")
         if self.storage_backend == "json":
-            return JSONStorage(graph_dir)
-        return KuzuDBStorage(graph_dir)
+            storage = JSONStorage(graph_dir)
+        else:
+            storage = KuzuDBStorage(graph_dir)
+        with GraphDatabase._storage_cache_lock:
+            GraphDatabase._storage_cache[graph_id] = storage
+        return storage
 
     def get_storage(self, graph_id: str, create: bool = False) -> GraphStorage:
         """Return the storage backend for a specific graph."""

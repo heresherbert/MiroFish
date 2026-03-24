@@ -957,6 +957,13 @@ class ReportAgent:
     def _define_tools(self) -> Dict[str, Dict[str, Any]]:
         """Define available tools"""
         return {
+            "get_simulation_actions": {
+                "name": "get_simulation_actions",
+                "description": "Get all physical social actions (creates, comments, quotes, likes) that happen inside the social platform simulation for this scenario, including agent verbatim replies and timeline logs.",
+                "parameters": {
+                    "limit": "Max results to return (optional, default 100)"
+                }
+            },
             "insight_forge": {
                 "name": "insight_forge",
                 "description": TOOL_DESC_INSIGHT_FORGE,
@@ -1006,7 +1013,17 @@ class ReportAgent:
         logger.info(f"Executing tool: {tool_name}, parameters: {parameters}")
 
         try:
-            if tool_name == "insight_forge":
+            if tool_name == "get_simulation_actions":
+                limit = parameters.get("limit", 100)
+                if isinstance(limit, str):
+                    limit = int(limit)
+                actions = self.graph_tools.get_simulation_actions(
+                    simulation_id=self.simulation_id,
+                    limit=limit
+                )
+                return json.dumps(actions, ensure_ascii=False, indent=2)
+
+            elif tool_name == "insight_forge":
                 query = parameters.get("query", "")
                 ctx = parameters.get("report_context", "") or report_context
                 result = self.graph_tools.insight_forge(
@@ -1093,14 +1110,14 @@ class ReportAgent:
                 return json.dumps(result, ensure_ascii=False, indent=2)
 
             else:
-                return f"Unknown tool: {tool_name}. Please use one of: insight_forge, panorama_search, quick_search"
+                return f"Unknown tool: {tool_name}. Please use one of: get_simulation_actions, insight_forge, panorama_search, quick_search"
 
         except Exception as e:
             logger.error(f"Tool execution failed: {tool_name}, error: {str(e)}")
             return f"Tool execution failed: {str(e)}"
 
     # Set of valid tool names, used for bare JSON fallback parsing validation
-    VALID_TOOL_NAMES = {"insight_forge", "panorama_search", "quick_search", "interview_agents"}
+    VALID_TOOL_NAMES = {"get_simulation_actions", "insight_forge", "panorama_search", "quick_search", "interview_agents"}
 
     def _parse_tool_calls(self, response: str) -> List[Dict[str, Any]]:
         """

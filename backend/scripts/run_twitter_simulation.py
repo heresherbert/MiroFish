@@ -494,7 +494,8 @@ class TwitterSimulationRunner:
             try:
                 agent = env.agent_graph.get_agent(agent_id)
                 active_agents.append((agent_id, agent))
-            except Exception:
+            except Exception as e:
+                print(f"  Warning: unable to get Agent {agent_id} from graph: {e}")
                 pass
         
         return active_agents

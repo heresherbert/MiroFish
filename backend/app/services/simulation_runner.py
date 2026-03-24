@@ -412,8 +412,13 @@ class SimulationRunner:
             #   reddit/actions.jsonl  - Reddit action log
             #   simulation.log        - Main process log
             
+            python_venv = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".venv", "bin", "python"))
+            if not os.path.exists(python_venv):
+                # Fallback if structure changes or on Windows
+                python_venv = sys.executable
+
             cmd = [
-                sys.executable,  # Python interpreter
+                python_venv,  # Explicit Python interpreter from .venv
                 script_path,
                 "--config", config_path,  # Use full configuration file path
             ]
@@ -421,6 +426,9 @@ class SimulationRunner:
             # If max rounds specified, add to command line arguments
             if max_rounds is not None and max_rounds > 0:
                 cmd.extend(["--max-rounds", str(max_rounds)])
+            
+            # Explicitly instruct the simulator to exit to the OS on completion
+            cmd.append("--no-wait")
             
             # Create main log file to avoid process blocking due to stdout/stderr pipe buffer full
             main_log_path = os.path.join(sim_dir, "simulation.log")
@@ -431,6 +439,17 @@ class SimulationRunner:
             env = os.environ.copy()
             env['PYTHONUTF8'] = '1'  # Python 3.7+ support, makes all open() default to UTF-8
             env['PYTHONIOENCODING'] = 'utf-8'  # Ensure stdout/stderr use UTF-8
+
+            # Guarantee .venv is respected for sub-process site-packages
+            python_dir = os.path.dirname(python_venv) # .venv/bin
+            env['PATH'] = f"{python_dir}:" + env.get('PATH', '')
+            env['VIRTUAL_ENV'] = os.path.dirname(python_dir) # .venv
+            
+            # Feed OpenRouter fallback params backward so camel-oasis routes it correctly
+            if "LLM_BASE_URL" in os.environ and "OPENAI_BASE_URL" not in env:
+                env['OPENAI_BASE_URL'] = os.environ["LLM_BASE_URL"]
+            if "LLM_API_KEY" in os.environ and "OPENAI_API_KEY" not in env:
+                env['OPENAI_API_KEY'] = os.environ["LLM_API_KEY"]
             
             # Set working directory to simulation directory (databases and other files are generated here)
             # Use start_new_session=True to create a new process group, ensuring all child processes can be terminated via os.killpg

@@ -143,6 +143,15 @@ Document upload → LLM ontology extraction → Knowledge graph (GraphStorage �
 ## License
 
 AGPL-3.0
-License
 
-AGPL-3.0
+---
+
+## 🛠️ Walkthrough of Applied Fixes
+
+We have recently applied several critical environment and performance stabilizations to this fork:
+
+1. **In-Memory Handle Caching (KuzuDB)**: Fixed concurrent session visibility blocks where graph updates would yield 0 nodes on independent threads initially.
+2. **Stable Vector Builds (NumPyDowngrade)**: Enforced maximum bounding offsets for PyTorch models inside Astral environment scopes.
+3. **Optimized Loop Trigger hooks (Simulation Halt)**: Reassigned configuration patching to invoke safely **after** persona builders report success thresholds, shielding early agent schedule halts.
+4. **Transparent Trace Insights**: Fed direct reaction logs databases directly to evaluating reports handlers.
+5. **Flexible Visual Workspaces (Grid/List)**: Shifted 3D fanning absolute frames layout onto scalable CSS standard wrappers supporting manual layout toggle switches effortlessly.

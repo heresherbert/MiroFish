@@ -903,6 +903,62 @@ class GraphToolsService:
             "relation_types": relation_types
         }
 
+    def get_simulation_actions(self, simulation_id: str, limit: int = 100) -> List[Dict[str, Any]]:
+        """
+        Get all social actions (posts, comments, quote_posts, likes) from the simulation trace database.
+        
+        Args:
+            simulation_id: Simulation ID
+            limit: Record quantity limit
+        """
+        import sqlite3
+        import os
+        
+        logger.info(f"Fetching simulation actions for {simulation_id}...")
+        
+        db_path = os.path.abspath(os.path.join(
+            os.path.dirname(__file__),
+            f'../../uploads/simulations/{simulation_id}/twitter_simulation.db'
+        ))
+        
+        if not os.path.exists(db_path):
+            logger.warning(f"No simulation database found at {db_path}")
+            return []
+            
+        results = []
+        try:
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            
+            # Query all non-setup actions
+            cursor.execute("""
+                SELECT user_id, action, info, created_at
+                FROM trace
+                WHERE action NOT IN ('sign_up', 'interview')
+                ORDER BY created_at ASC
+                LIMIT ?
+            """, (limit,))
+            
+            for user_id, action, info_json, created_at in cursor.fetchall():
+                try:
+                    info = json.loads(info_json) if info_json else {}
+                except Exception:
+                    info = {"raw": info_json}
+                
+                results.append({
+                    "agent_id": user_id,
+                    "action": action,
+                    "details": info,
+                    "created_at": created_at
+                })
+            
+            logger.info(f"Loaded {len(results)} actions from trace database")
+            
+        except Exception as e:
+            logger.error(f"Failed to read simulation actions: {e}")
+            
+        return results
+
     def get_simulation_context(
         self,
         graph_id: str,

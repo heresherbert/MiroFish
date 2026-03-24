@@ -14,17 +14,33 @@
     <div class="section-header">
       <div class="section-line"></div>
       <span class="section-title">Prediction History</span>
+      
+      <!-- Layout Toggle -->
+      <div class="view-toggle" v-if="projects.length > 0">
+        <button 
+          class="toggle-btn" 
+          :class="{ active: viewMode === 'grid' }"
+          @click="viewMode = 'grid'"
+          title="Grid View"
+        >⊞ Grid</button>
+        <button 
+          class="toggle-btn" 
+          :class="{ active: viewMode === 'list' }"
+          @click="viewMode = 'list'"
+          title="List View"
+        >☰ List</button>
+      </div>
+      
       <div class="section-line"></div>
     </div>
 
-    <!-- Cards container (only shown when projects exist) -->
-    <div v-if="projects.length > 0" class="cards-container" :class="{ expanded: isExpanded }" :style="containerStyle">
+    <!-- Cards container -->
+    <div v-if="projects.length > 0" :class="['cards-container', viewMode]">
       <div 
         v-for="(project, index) in projects" 
         :key="project.simulation_id"
         class="project-card"
-        :class="{ expanded: isExpanded, hovering: hoveringCard === index }"
-        :style="getCardStyle(index)"
+        :class="{ expanded: true, hovering: hoveringCard === index }"
         @mouseenter="hoveringCard = index"
         @mouseleave="hoveringCard = null"
         @click="navigateToProject(project)"
@@ -201,14 +217,11 @@ const route = useRoute()
 // State
 const projects = ref([])
 const loading = ref(true)
-const isExpanded = ref(false)
+const viewMode = ref('grid') // 'grid' or 'list'
 const hoveringCard = ref(null)
 const historyContainer = ref(null)
 const selectedProject = ref(null)  // Currently selected project (for modal)
-let observer = null
-let isAnimating = false  // Animation lock to prevent flickering
-let expandDebounceTimer = null  // Debounce timer
-let pendingState = null  // Track the pending target state
+const isExpanded = ref(true) // Always expanded for Grid layout
 
 // Card layout config - adjusted for wider proportions
 const CARDS_PER_ROW = 4
@@ -216,77 +229,7 @@ const CARD_WIDTH = 280
 const CARD_HEIGHT = 280 
 const CARD_GAP = 24
 
-// Dynamically compute container height style
-const containerStyle = computed(() => {
-  if (!isExpanded.value) {
-    // Collapsed state: fixed height
-    return { minHeight: '420px' }
-  }
-
-  // Expanded state: dynamically compute height based on card count
-  const total = projects.value.length
-  if (total === 0) {
-    return { minHeight: '280px' }
-  }
-  
-  const rows = Math.ceil(total / CARDS_PER_ROW)
-  // Calculate actual height needed: rows * card height + (rows-1) * gap + small bottom margin
-  const expandedHeight = rows * CARD_HEIGHT + (rows - 1) * CARD_GAP + 10
-  
-  return { minHeight: `${expandedHeight}px` }
-})
-
-// Get card style
-const getCardStyle = (index) => {
-  const total = projects.value.length
-  
-  if (isExpanded.value) {
-    // Expanded state: grid layout
-    const transition = 'transform 700ms cubic-bezier(0.23, 1, 0.32, 1), opacity 700ms cubic-bezier(0.23, 1, 0.32, 1), box-shadow 0.3s ease, border-color 0.3s ease'
-
-    const col = index % CARDS_PER_ROW
-    const row = Math.floor(index / CARDS_PER_ROW)
-    
-    // Calculate card count for the current row, ensure centering
-    const currentRowStart = row * CARDS_PER_ROW
-    const currentRowCards = Math.min(CARDS_PER_ROW, total - currentRowStart)
-    
-    const rowWidth = currentRowCards * CARD_WIDTH + (currentRowCards - 1) * CARD_GAP
-    
-    const startX = -(rowWidth / 2) + (CARD_WIDTH / 2)
-    const colInRow = index % CARDS_PER_ROW
-    const x = startX + colInRow * (CARD_WIDTH + CARD_GAP)
-    
-    // Expand downward, increase spacing from title
-    const y = 20 + row * (CARD_HEIGHT + CARD_GAP)
-
-    return {
-      transform: `translate(${x}px, ${y}px) rotate(0deg) scale(1)`,
-      zIndex: 100 + index,
-      opacity: 1,
-      transition: transition
-    }
-  } else {
-    // Collapsed state: fan-stacked
-    const transition = 'transform 700ms cubic-bezier(0.23, 1, 0.32, 1), opacity 700ms cubic-bezier(0.23, 1, 0.32, 1), box-shadow 0.3s ease, border-color 0.3s ease'
-
-    const centerIndex = (total - 1) / 2
-    const offset = index - centerIndex
-    
-    const x = offset * 35
-    // Adjust starting position, close to title but with adequate spacing
-    const y = 25 + Math.abs(offset) * 8
-    const r = offset * 3
-    const s = 0.95 - Math.abs(offset) * 0.05
-    
-    return {
-      transform: `translate(${x}px, ${y}px) rotate(${r}deg) scale(${s})`,
-      zIndex: 10 + index,
-      opacity: 1,
-      transition: transition
-    }
-  }
-}
+// Absolute positioning calculations removed in favor of CSS Grid/Flexbox
 
 // Get style class based on round progress
 const getProgressClass = (simulation) => {
@@ -450,86 +393,7 @@ const loadHistory = async () => {
   }
 }
 
-// Initialize IntersectionObserver
-const initObserver = () => {
-  if (observer) {
-    observer.disconnect()
-  }
-  
-  observer = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        const shouldExpand = entry.isIntersecting
-        
-        // Update pending target state (always record latest target state regardless of animation)
-        pendingState = shouldExpand
-        
-        // Clear previous debounce timer (new scroll intent overrides old one)
-        if (expandDebounceTimer) {
-          clearTimeout(expandDebounceTimer)
-          expandDebounceTimer = null
-        }
-        
-        // If animating, only record state, handle after animation ends
-        if (isAnimating) return
-        
-        // If target state matches current state, no action needed
-        if (shouldExpand === isExpanded.value) {
-          pendingState = null
-          return
-        }
-        
-        // Use debounced delay for state transitions to prevent rapid flickering
-        // Shorter delay for expanding (50ms), longer for collapsing (200ms) for stability
-        const delay = shouldExpand ? 50 : 200
-        
-        expandDebounceTimer = setTimeout(() => {
-          // Check if animating
-          if (isAnimating) return
-          
-          // Check if pending state still needs execution (may have been overridden by later scrolls)
-          if (pendingState === null || pendingState === isExpanded.value) return
-          
-          // Set animation lock
-          isAnimating = true
-          isExpanded.value = pendingState
-          pendingState = null
-          
-          // Unlock after animation completes, check for pending state changes
-          setTimeout(() => {
-            isAnimating = false
-            
-            // After animation ends, check for new pending state
-            if (pendingState !== null && pendingState !== isExpanded.value) {
-              // Delay a short time before executing, avoid switching too fast
-              expandDebounceTimer = setTimeout(() => {
-                if (pendingState !== null && pendingState !== isExpanded.value) {
-                  isAnimating = true
-                  isExpanded.value = pendingState
-                  pendingState = null
-                  setTimeout(() => {
-                    isAnimating = false
-                  }, 750)
-                }
-              }, 100)
-            }
-          }, 750)
-        }, delay)
-      })
-    },
-    {
-      // Use multiple thresholds for smoother detection
-      threshold: [0.4, 0.6, 0.8],
-      // Adjust rootMargin, shrink viewport bottom upward, requires more scroll to trigger expand
-      rootMargin: '0px 0px -150px 0px'
-    }
-  )
-  
-  // Start observing
-  if (historyContainer.value) {
-    observer.observe(historyContainer.value)
-  }
-}
+// IntersectionObserver logic removed
 
 // Watch route changes, reload data when returning to home page
 watch(() => route.path, (newPath) => {
@@ -539,14 +403,8 @@ watch(() => route.path, (newPath) => {
 })
 
 onMounted(async () => {
-  // Ensure DOM rendering is complete before loading data
   await nextTick()
   await loadHistory()
-  
-  // Initialize observer after DOM rendering
-  setTimeout(() => {
-    initObserver()
-  }, 100)
 })
 
 // If using keep-alive, reload data when component is activated
@@ -555,16 +413,7 @@ onActivated(() => {
 })
 
 onUnmounted(() => {
-  // Clean up Intersection Observer
-  if (observer) {
-    observer.disconnect()
-    observer = null
-  }
-  // Clean up debounce timer
-  if (expandDebounceTimer) {
-    clearTimeout(expandDebounceTimer)
-    expandDebounceTimer = null
-  }
+  // Cleanup removed
 })
 </script>
 
@@ -651,28 +500,43 @@ onUnmounted(() => {
   text-transform: uppercase;
 }
 
-/* Cards container */
+/* Cards container - Grid Layout by Default */
 .cards-container {
-  position: relative;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px;
+  width: 100%;
   padding: 0 40px;
-  transition: min-height 700ms cubic-bezier(0.23, 1, 0.32, 1);
-  /* min-height dynamically computed by JS, adapts to card count */
+  transition: all 0.3s ease;
+}
+
+/* List Mode Layout overrides */
+.cards-container.list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 900px;
+  margin: 0 auto;
 }
 
 /* Project card */
 .project-card {
-  position: absolute;
-  width: 280px;
+  position: relative;
+  width: 100%; /* full width of grid cell or flex container */
   background: #FFFFFF;
   border: 1px solid #E5E7EB;
-  border-radius: 0;
-  padding: 14px;
+  border-radius: 4px;
+  padding: 16px;
   cursor: pointer;
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  transition: box-shadow 0.3s ease, border-color 0.3s ease, transform 700ms cubic-bezier(0.23, 1, 0.32, 1), opacity 700ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: all 0.3s ease;
+}
+
+.cards-container.list .project-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 12px 20px;
 }
 
 .project-card:hover {
@@ -965,6 +829,45 @@ onUnmounted(() => {
 
 .project-card:hover .card-bottom-line {
   width: 100%;
+}
+
+/* Layout View Toggle */
+.view-toggle {
+  display: flex;
+  gap: 6px;
+  background: #F3F4F6;
+  padding: 4px;
+  border-radius: 6px;
+  border: 1px solid #E5E7EB;
+  z-index: 110;
+  align-items: center;
+}
+
+.toggle-btn {
+  background: transparent;
+  border: none;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #6B7280;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.toggle-btn:hover {
+  color: #111827;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.toggle-btn.active {
+  background: #FFFFFF;
+  color: #111827;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 }
 
 /* Empty state */

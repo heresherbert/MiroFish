@@ -1,0 +1,61 @@
+============================================================
+MIROFISH SIMULATION RESULTS SUMMARY (EXPANDED RUN)
+============================================================
+
+The simulation successfully executed multiple iterative social intervals. Agents woke up at 8:00 AM (simulated time) and continuous dialogue tree replies were recorded in the database traces table.
+
+------------------------------------------------------------
+Target Mockup Post
+------------------------------------------------------------
+"I just posted: 'I farted' on my personal Facebook. Let’s see who reacts first 😂"
+
+------------------------------------------------------------
+Iterative Social Thread (Action Breakdown)
+------------------------------------------------------------
+
+1. [Dave] (Agent 0)
+   Comment: "Bro?? Declared it to the group chat AND Facebook?! Respect. 😂 Next time tag the location."
+
+2. [Mike] (Agent 4)
+   Comment: "Honestly? Kind of iconic. Hope you’re hydrated though 😅😂"
+
+3. [Sarah] (Agent 5)
+   Comment: "This is an odd public post. Please keep personal matters appropriate for the workplace/social context."
+
+4. [Karen] (Agent 3)
+   Comment: "Oh my goodness… why would you post that on Facebook? Please be mindful, sweetheart."
+
+5. [Agent 1]
+   Action: Quoted Sarah (Post ID 4) with constructive feedback to keep communities safe.
+
+6. [Dave] (Agent 0)
+   Action: Liked post ID 4 (Sarah’s comment).
+   Action: Quoted post ID 6 (Agent 1's quote post).
+
+7. [Agent 2]
+   Action: Reposted ID 6.
+   Action: Quoted post ID 4 (Sarah's comment).
+
+8. [Karen] (Agent 3)
+   Action: Quoted post ID 4.
+   Action: Reposted ID 6.
+
+9. [Mike] (Agent 4)
+   Action: Quoted post ID 4.
+   Action: Liked post ID 6 (Agent 1's post).
+
+10. [Sarah] (Agent 5)
+    Action: Quoted post ID 10.
+    Action: Liked post ID 5.
+
+This proves consecutive action chaining (e.g., agents quoting other agents quoting comments) is fully functional following day cycles.
+
+------------------------------------------------------------
+Paths to Outputs on Disk
+------------------------------------------------------------
+- Full Log Trace: backend/uploads/simulations/sim_da6293893ec6/log/social.agent.log
+- State Record: backend/uploads/simulations/sim_da6293893ec6/run_state.json
+- Database (SQLite): backend/uploads/simulations/sim_da6293893ec6/twitter_simulation.db
+
+You can review other log traces or queries as needed.
+============================================================

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Iterable, Optional
 
@@ -934,8 +935,16 @@ class JSONStorage(GraphStorage):
         return None
 
 
+_graph_storage_cache: Dict[str, "GraphStorage"] = {}
+_graph_storage_lock = threading.Lock()
+
+
 def get_app_graph_storage(graph_id: Optional[str] = None) -> Optional[GraphStorage]:
-    """Resolve the configured graph storage from the active Flask app."""
+    """Resolve the configured graph storage from the active Flask app.
+
+    Per-graph instances are cached so that readers and writers share the
+    same KuzuDB connection, avoiding stale-snapshot issues.
+    """
     try:
         storage = current_app.extensions.get("graph_storage")
     except RuntimeError:
@@ -944,8 +953,17 @@ def get_app_graph_storage(graph_id: Optional[str] = None) -> Optional[GraphStora
     if storage is None or graph_id is None:
         return storage
 
-    if isinstance(storage, KuzuDBStorage):
-        return KuzuDBStorage(os.path.join(storage.db_path, graph_id))
-    if isinstance(storage, JSONStorage):
-        return JSONStorage(os.path.join(storage.data_dir, graph_id))
-    return storage
+    with _graph_storage_lock:
+        cached = _graph_storage_cache.get(graph_id)
+        if cached is not None:
+            return cached
+
+        if isinstance(storage, KuzuDBStorage):
+            instance = KuzuDBStorage(os.path.join(storage.db_path, graph_id))
+        elif isinstance(storage, JSONStorage):
+            instance = JSONStorage(os.path.join(storage.data_dir, graph_id))
+        else:
+            return storage
+
+        _graph_storage_cache[graph_id] = instance
+        return instance
